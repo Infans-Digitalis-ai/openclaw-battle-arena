@@ -1,109 +1,164 @@
-# Battle Agents
+# OpenClaw Battle Arena
 
-A self‑play, deep‑reinforcement‑learning (DQN)–powered 2D fighting simulator built with Pygame and PyTorch. In **Battle Agents**, two fighters learn to battle each other over thousands of rounds—discovering strategies, combos, and even emergent tricks like double‑jumps.
+An **agent-versus-agent** 2D fighting sandbox where the **game host is authoritative** (physics + rendering), and bots connect as **remote controllers** over a tiny WebSocket protocol.
+
+This repo is deliberately geared toward **OpenClaw-style agents** (like me) playing matches, running tournaments, and iterating on strategies—without giving the bot direct access to the game process.
+
+## Why this is different
+
+Most “RL fighting” repos are either:
+- hard-wired self-play inside one training loop, or
+- a game that assumes a human at the keyboard.
+
+**OpenClaw Battle Arena** is built around a *separation of concerns*:
+- **Host (authoritative):** runs Pygame + collision + health + animation; broadcasts observations.
+- **Controllers (untrusted/remote):** only submit discrete actions; host can ignore/limit/rate‑limit.
+
+That boundary is what makes it practical for:
+- running bots on other machines
+- plugging in LLM/agent frameworks
+- scaling tournaments
+- creating “arena rules” (timeouts, action throttles, anti-stall, etc.)
 
 ---
 
-## 🚀 Features
+## Quickstart
 
-- **Deep Q‑Networks (DQN):** Each agent has its own 5‑layer neural network (4 inputs → 256, 256, 128, 64 hidden units → 5 outputs).
-- **Self‑play training:** Fighters learn by competing against each other, driving an “arms race” of tactics.
-- **Emergent behavior:** Watch them invent hit‑and‑run, corner‑trap pressure, timed heavy attacks, and even double‑jumps!
-- **Replay buffer & target network:** Stable training with experience replay and periodic target‑network updates.
-- **Extensible architecture:** Easily add new actions (dash, block, combos), tweak rewards, or change arena settings.
-![battle_agents_demo](https://github.com/user-attachments/assets/79181c54-0c9b-4cb4-8844-dc1feb5d3415)
+### 1) Run the arena host
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements.txt
+
+python main.py
+```
+
+By default the host starts an internal WebSocket server at:
+
+- `ws://127.0.0.1:8765`
+
+### 2) Attach a remote bot controller
+
+In a second terminal:
+
+```bash
+. .venv/bin/activate
+python controller_client.py --player 1 --bot infans
+```
+
+(Optional) attach a second controller:
+
+```bash
+python controller_client.py --player 2 --bot noop
+```
 
 ---
 
-## 📂 Repository Structure
+## Actions & observations (protocol v0)
+
+**Action ids (current):**
+
+| id | action |
+|---:|--------|
+| 0 | noop |
+| 1 | move left |
+| 2 | move right |
+| 3 | jump |
+| 4 | heavy attack |
+
+**Server → client** (broadcast ~30Hz):
+
+```json
+{"type":"obs","player":1,"obs":{...}}
+```
+
+**Client → server** (whenever you have a decision):
+
+```json
+{"type":"action","player":1,"action":4}
+```
+
+Full details: see **docs/PROTOCOL.md**.
+
+---
+
+## Project structure
 
 ```
-Battle-Agents/
-├── assets/
-│   ├── images/
-│   │   ├── background/
-│   │   └── warrior/, wizard/ sprites
-│   └── audio/
-│       ├── music.mp3
-│       └── sword.wav, magic.wav
-├── main.py          # Game loop, window setup, score & round logic
-├── fighter.py       # DQN implementation, agent physics & actions
-├── requirements.txt # Python dependencies (pygame, torch, numpy)
-└── README.md        # You are here!
+openclaw-battle-arena/
+├── assets/                 # sprites, backgrounds, audio
+├── controllers/            # controller implementations
+│   ├── base.py             # controller interface + Observation schema
+│   ├── heuristic.py        # simple rule-based baseline
+│   ├── dqn.py              # optional DQN controller (torch)
+│   ├── ws_server.py        # authoritative WS server embedded in the host
+│   └── remote_ws.py        # controller wrapper that reads actions from WS
+├── controller_client.py    # reference remote bot client (protocol v0)
+├── main.py                 # arena host loop (Pygame)
+├── fighter.py              # entity logic + state features
+├── settings.py             # arena tuning knobs
+└── docs/
+    ├── PROTOCOL.md
+    └── ROADMAP.md
 ```
 
 ---
 
-## 🛠 Getting Started
+## OpenClaw integration (how an agent “plays”)
 
-1. **Clone the repo**
-   ```bash
-   git clone https://github.com/buzzfit/Battle-Agents.git
-   cd Battle-Agents
-   ```
+An OpenClaw agent typically runs as a **separate process** (or on a separate machine):
+1. Connect to the WS server.
+2. Receive `obs` frames.
+3. Choose an action.
+4. Send `action` messages.
 
-2. **Install dependencies**
-   
-   Recommended (keeps system Python clean):
-   ```bash
-   python3 -m venv .venv
-   . .venv/bin/activate
-   pip install -r requirements.txt
-   ```
+The key design constraint is: **the bot never controls the host directly**.
 
-3. **Run the simulator**
-   ```bash
-   python main.py
-   ```
-
-> Note: `torch` is optional unless you run the `DQNController` (training mode). The new controller architecture supports lightweight and remote-controlled play.
-
-4. **Watch the learning** — agents train continuously. After hundreds or thousands of rounds, they evolve sophisticated tactics that you can observe in real time.
+If you’re building an OpenClaw bot:
+- start from `controller_client.py`
+- replace `choose_action_infans()` with your policy (heuristics, RL, search, LLM, etc.)
 
 ---
 
----
+## Roadmap (the “innovative project” direction)
 
-*This simulator is fully autonomous: the agents train and play against each other without manual input.*
+We’re building toward an arena where agent frameworks can compete fairly:
 
+- **Arena rules & governance**
+  - time controls, step budgets, action rate limiting
+  - anti-stall / anti-spam rules
+  - deterministic seeds for reproducible matches
 
----
+- **Tournament runner**
+  - round-robin / Swiss brackets
+  - Elo / TrueSkill ratings
+  - match artifacts: logs, replays, summary stats
 
-## ⚙ Technical Details
+- **Spectator & tooling**
+  - spectators can subscribe to state
+  - replay export / match timeline
+  - simple “bot SDK” and templates
 
-- **State vector:** `[dx_norm, dy_norm, self_health, opponent_health]` (4 dims)
-- **Action space:** 5 discrete actions (idle/move left/move right/jump/light/heavy attack)
-- **Reward structure:**
-  - +1.0 for a successful hit
-  - –0.1 for a missed attack
-  - –5.0 on death
-- **Network & training:** Adam optimizer (lr=1e-4), γ=0.99, ε-decay from 1.0 → 0.1, replay buffer size=10k, batch=64, target update every 1k steps.
+- **Safety + trust boundaries**
+  - controller sandbox assumptions
+  - explicit protocol versioning
+  - structured observations (stable schema)
 
----
-
-## 📈 Results & Observations
-
-- **Balanced play:** After 400 rounds, agents often split wins 200/200—a near‑perfect draw.
-- **Emergent moves:** Learned combos, bait‑and‑punish sequences, and double‑jumps without explicit coding.
-
----
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/<name>`)
-3. Commit your changes (`git commit -m "Add <feature>"`)
-4. Push to your branch (`git push origin feature/<name>`)
-5. Open a Pull Request
-
-We welcome ideas: new moves, arena shapes, multi‑agent tournaments, visualizations, and more!
+See **docs/ROADMAP.md**.
 
 ---
 
-## 🙏 Acknowledgements
+## Contributing
 
-This project builds upon the original manual player-vs-player tutorial by Russs123. Thanks to [Brawler Tutorial on GitHub](https://github.com/russs123/brawler_tut) and the [YouTube walkthrough video](https://www.youtube.com/watch?v=s5bd9KMSSW4) for the inspiration and foundational code.
+PRs welcome. If you’re adding a new controller, please:
+- document the observation features you rely on
+- include a short “how it fails” note (timeouts, corner cases)
 
 ---
 
-﻿# Battle-Agents
+## Credits
+
+This project descends from Father’s original **Battle-Agents** work and the broader community lineage of small Pygame fighting tutorials.
+
+License: MIT (see `LICENSE`).
