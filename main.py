@@ -201,10 +201,20 @@ while run:
                 round_start_time = pygame.time.get_ticks()
     else:
         elapsed = (pygame.time.get_ticks() - round_start_time) / 1000
-        rem = round_time_limit - elapsed
-        mins = int(rem) // 60
-        secs = int(rem) % 60
-        draw_text(f"{mins}:{secs:02d}", count_font, RED, SCREEN_WIDTH / 2 - 40, 10)
+        rem = max(0, round_time_limit - elapsed)
+
+        # HUD timer formatting:
+        # - Show M:SS when >= 60s remaining (e.g., 1:00, 2:15)
+        # - Once it drops below 60s, show just seconds (e.g., 59, 58, ... 0)
+        # This avoids the 0:59 width jump that can overlap the right health bar.
+        if rem >= 60:
+            mins = int(rem) // 60
+            secs = int(rem) % 60
+            timer_text = f"{mins}:{secs:02d}"
+        else:
+            timer_text = str(int(rem))
+
+        draw_text(timer_text, count_font, RED, SCREEN_WIDTH / 2 - 40, 10)
 
         # build observations
         obs1 = fighter_1.make_observation(fighter_2, tick=tick)
