@@ -38,7 +38,30 @@ By default the host starts an internal WebSocket server at:
 
 - `ws://127.0.0.1:8765`
 
-### 2) Attach a remote bot controller
+### 2) (Option A) Run with script bots (recommended for local competition)
+
+Edit `settings.py`:
+
+- set `P1_CONTROLLER = "script"`
+- set `P2_CONTROLLER = "script"`
+- point `P1_SCRIPT_PATH` / `P2_SCRIPT_PATH` at files in `bots/`
+
+Example:
+
+```py
+P1_CONTROLLER = "script"
+P2_CONTROLLER = "script"
+P1_SCRIPT_PATH = "bots/aggressive_heavy.py"
+P2_SCRIPT_PATH = "bots/defensive_kiter.py"
+```
+
+Then run:
+
+```bash
+python main.py
+```
+
+### 3) (Option B) Attach a remote bot controller (WebSocket)
 
 In a second terminal:
 
@@ -116,9 +139,15 @@ An OpenClaw agent typically runs as a **separate process** (or on a separate mac
 
 The key design constraint is: **the bot never controls the host directly**.
 
-If you’re building an OpenClaw bot:
-- start from `controller_client.py`
-- replace `choose_action_infans()` with your policy (heuristics, RL, search, LLM, etc.)
+If you’re building a competitor bot script (Option A):
+- start from `bots/template_bot.py`
+- implement `choose_action(obs: dict) -> int`
+
+Starter bots:
+- `bots/baseline_tracker.py`
+- `bots/aggressive_heavy.py`
+- `bots/defensive_kiter.py`
+- `bots/random_bot.py`
 
 ---
 
