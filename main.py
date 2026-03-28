@@ -61,6 +61,7 @@ victory_img = pygame.image.load("assets/images/icons/victory.png").convert_alpha
 # fonts
 count_font = pygame.font.Font("assets/fonts/turok.ttf", 80)
 score_font = pygame.font.Font("assets/fonts/turok.ttf", 30)
+ui_font = pygame.font.Font("assets/fonts/turok.ttf", 18)
 
 
 def draw_text(text, font, color, x, y):
@@ -117,6 +118,18 @@ if settings.P1_CONTROLLER.lower() in ("remote", "ws", "remote-ws", "websocket") 
 controller_1 = make_controller(settings.P1_CONTROLLER, player=1, screen_width=SCREEN_WIDTH, ws_server=ws_server)
 controller_2 = make_controller(settings.P2_CONTROLLER, player=2, screen_width=SCREEN_WIDTH, ws_server=ws_server)
 
+def controller_label(player: int, kind: str, ctrl) -> str:
+    name = getattr(ctrl, "name", "")
+    name = str(name) if name is not None else ""
+    base = f"P{player}={kind}"
+    if name and name.lower() != kind.lower():
+        return f"{base} ({name})"
+    return base
+
+p1_label = controller_label(1, settings.P1_CONTROLLER, controller_1)
+p2_label = controller_label(2, settings.P2_CONTROLLER, controller_2)
+ws_label = f"WS={settings.WS_HOST}:{settings.WS_PORT}" if ws_server is not None else "WS=off"
+
 # Match format
 best_of = max(1, int(settings.MATCH_BEST_OF))
 win_target = (best_of // 2) + 1
@@ -132,6 +145,9 @@ while run:
     draw_health_bar(fighter_2.health, 580, 20)
     draw_text(f"P1: {score[0]}", score_font, RED, 20, 60)
     draw_text(f"P2: {score[1]}", score_font, RED, 580, 60)
+
+    # Controller overlay (always visible for demos)
+    draw_text(f"{p1_label} | {p2_label} | {ws_label}", ui_font, WHITE, 20, 95)
 
     if intro_count > 0:
         draw_text(str(intro_count), count_font, RED, SCREEN_WIDTH / 2 - 20, SCREEN_HEIGHT / 3)
