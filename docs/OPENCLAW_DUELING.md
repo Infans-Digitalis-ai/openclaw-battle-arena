@@ -35,6 +35,8 @@ Current default config is in `settings.py`:
 
 So the game will always run the **current** versions of those two bot scripts.
 
+By default, both `openclaw_p1.py` and `openclaw_p2.py` are **NOOP** (stand still) until an OpenClaw agent overwrites them.
+
 ## Headless benchmarking (winrate + avg round time)
 
 ```bash
