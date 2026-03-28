@@ -20,12 +20,14 @@ MATCH_BEST_OF = 3  # best-of-3 rounds
 
 # Controller selection
 # Options: "remote" (ws), "heuristic", "dqn", "script"
-P1_CONTROLLER = "remote"    # warrior
-P2_CONTROLLER = "heuristic" # wizard
+# For Option A (local duels), use "script" for both players.
+P1_CONTROLLER = "script"  # warrior
+P2_CONTROLLER = "script"  # wizard
 
-# Option A (script bots): set controller to "script" and provide a script path.
-P1_SCRIPT_PATH = "bots/aggressive_heavy.py"
-P2_SCRIPT_PATH = "bots/aggressive_heavy.py"
+# Option A (script bots): provide a script path for each player.
+# These two files are intended to be generated/edited by OpenClaw agents before a duel.
+P1_SCRIPT_PATH = "bots/openclaw_p1.py"
+P2_SCRIPT_PATH = "bots/openclaw_p2.py"
 
 # WebSocket server (used when any controller is "remote")
 WS_HOST = "127.0.0.1"
