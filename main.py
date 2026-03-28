@@ -60,13 +60,35 @@ victory_img = pygame.image.load("assets/images/icons/victory.png").convert_alpha
 
 # fonts
 count_font = pygame.font.Font("assets/fonts/turok.ttf", 80)
-score_font = pygame.font.Font("assets/fonts/turok.ttf", 30)
-ui_font = pygame.font.Font("assets/fonts/turok.ttf", 18)
+score_font = pygame.font.Font("assets/fonts/turok.ttf", 32)
+ui_font = pygame.font.Font("assets/fonts/turok.ttf", 22)
+
+score_font.set_bold(True)
+ui_font.set_bold(True)
 
 
 def draw_text(text, font, color, x, y):
     img = font.render(text, True, color)
     screen.blit(img, (x, y))
+
+
+def draw_text_shadow(text, font, color, x, y, shadow=(0, 0, 0)):
+    # Simple outline/shadow for readability.
+    sx, sy = 2, 2
+    screen.blit(font.render(text, True, shadow), (x + sx, y + sy))
+    screen.blit(font.render(text, True, color), (x, y))
+
+
+def draw_text_right(text, font, color, right_x, y):
+    img = font.render(text, True, color)
+    rect = img.get_rect(topright=(right_x, y))
+    screen.blit(img, rect)
+
+
+def draw_text_center(text, font, color, center_x, y):
+    img = font.render(text, True, color)
+    rect = img.get_rect(midtop=(center_x, y))
+    screen.blit(img, rect)
 
 
 def draw_bg():
@@ -131,8 +153,9 @@ p2_label = controller_label(2, settings.P2_CONTROLLER, controller_2)
 ws_label = f"WS={settings.WS_HOST}:{settings.WS_PORT}" if ws_server is not None else "WS=off"
 
 # Match format
-best_of = max(1, int(settings.MATCH_BEST_OF))
-win_target = (best_of // 2) + 1
+# NOTE: For this arena build we play exactly N rounds (not "best-of").
+# This avoids early termination when someone reaches 2 wins in a 3-round match.
+match_rounds = max(1, int(settings.MATCH_BEST_OF))
 
 run = True
 tick = 0
@@ -143,11 +166,20 @@ while run:
     draw_bg()
     draw_health_bar(fighter_1.health, 20, 20)
     draw_health_bar(fighter_2.health, 580, 20)
-    draw_text(f"P1: {score[0]}", score_font, RED, 20, 60)
-    draw_text(f"P2: {score[1]}", score_font, RED, 580, 60)
 
-    # Controller overlay (always visible for demos)
-    draw_text(f"{p1_label} | {p2_label} | {ws_label}", ui_font, WHITE, 20, 95)
+    # Score labels (left/right)
+    draw_text_shadow(f"P1: {score[0]}", score_font, WHITE, 20, 58)
+    draw_text_right(f"P2: {score[1]}", score_font, WHITE, SCREEN_WIDTH - 20, 58)
+
+    # Round counter (center)
+    rounds_played = score[0] + score[1]
+    current_round = min(match_rounds, rounds_played + 1)
+    draw_text_center(f"ROUND {current_round}/{match_rounds}", ui_font, WHITE, SCREEN_WIDTH / 2, 58)
+
+    # Controller overlay (left/right + WS centered)
+    draw_text_shadow(p1_label, ui_font, WHITE, 20, 92)
+    draw_text_right(p2_label, ui_font, WHITE, SCREEN_WIDTH - 20, 92)
+    draw_text_center(ws_label, ui_font, WHITE, SCREEN_WIDTH / 2, 92)
 
     if intro_count > 0:
         draw_text(str(intro_count), count_font, RED, SCREEN_WIDTH / 2 - 20, SCREEN_HEIGHT / 3)
@@ -204,9 +236,9 @@ while run:
             fighter_1.reset()
             fighter_2.reset()
 
-            # MATCH mode: stop once someone reaches win_target
+            # MATCH mode: play exactly N rounds, then stop.
             if settings.MODE.upper() == "MATCH":
-                if score[0] >= win_target or score[1] >= win_target:
+                if (score[0] + score[1]) >= match_rounds:
                     # Keep display intact; just exit loop after final round.
                     run = False
 
