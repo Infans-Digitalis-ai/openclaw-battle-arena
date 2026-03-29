@@ -2,11 +2,16 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
 from types import ModuleType
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 from .base import Observation
+
+# Keep controllers import-light: do NOT import pygame-dependent modules here.
+_VALID_ACTIONS = {0, 1, 2, 3, 4, 5, 6, 7}
 
 
 @dataclass
@@ -32,9 +37,18 @@ class ScriptFileController:
       - choose_action(obs) -> int
 
     Where obs is a JSON-serializable dict (see Observation.to_json()).
+
+    Fairness guardrails:
+      - one action per tick (host-authoritative loop)
+      - per-tick time budget: if the script doesn't respond in time, return NOOP
+        (and mark the controller timed-out for the remainder of the match)
+      - clamp invalid actions to NOOP
+
+    Note: Python threads can't be force-killed safely. If a script times out and
+    then blocks forever, we treat it as "dead" and keep returning NOOP.
     """
 
-    def __init__(self, *, script_path: str):
+    def __init__(self, *, script_path: str, act_timeout_ms: int = 8):
         self._script_path = script_path
         self._mod = _load_module_from_path(script_path)
         fn = getattr(self._mod, "choose_action", None)
@@ -43,7 +57,47 @@ class ScriptFileController:
         self._choose: Callable[[dict[str, Any]], int] = fn  # type: ignore[assignment]
         self.name = getattr(self._mod, "BOT_NAME", os.path.basename(script_path))
 
+        self._act_timeout_s = max(0.0, float(act_timeout_ms) / 1000.0)
+        self._timed_out = False
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="script_bot")
+        self._warned_timeout = False
+        self._warned_error = False
+
+    def _clamp_action(self, a: int) -> int:
+        return a if a in _VALID_ACTIONS else 0
+
     def act(self, obs: Observation) -> int:
+        if self._timed_out:
+            return 0
+
         # Pass dict to keep the script interface stable and language-agnostic.
-        a = self._choose(obs.to_json())
-        return int(a)
+        payload = obs.to_json()
+
+        # No budget => just call directly.
+        if self._act_timeout_s <= 0:
+            try:
+                return self._clamp_action(int(self._choose(payload)))
+            except Exception:
+                return 0
+
+        start = time.perf_counter()
+        fut = self._executor.submit(self._choose, payload)
+        try:
+            a = fut.result(timeout=self._act_timeout_s)
+            _ = time.perf_counter() - start
+            return self._clamp_action(int(a))
+        except FutureTimeoutError:
+            self._timed_out = True
+            if not self._warned_timeout:
+                self._warned_timeout = True
+                print(
+                    f"[script] {self.name} timed out after {int(self._act_timeout_s*1000)}ms; "
+                    "returning NOOP for the rest of the match"
+                )
+            return 0
+        except Exception as e:
+            # Fail closed: invalid scripts shouldn't crash the host.
+            if not self._warned_error:
+                self._warned_error = True
+                print(f"[script] {self.name} error in choose_action: {e}; returning NOOP")
+            return 0

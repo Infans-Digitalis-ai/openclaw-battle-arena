@@ -16,6 +16,7 @@ def make_controller(
     screen_width: int,
     ws_server: Optional[BattleAgentsWSServer] = None,
     script_path: Optional[str] = None,
+    script_timeout_ms: int = 8,
 ) -> Controller:
     kind = (kind or "").strip().lower()
 
@@ -33,7 +34,7 @@ def make_controller(
     if kind in ("script", "file", "script-file"):
         if not script_path:
             raise ValueError("script_path is required for script controller")
-        return ScriptFileController(script_path=script_path)
+        return ScriptFileController(script_path=script_path, act_timeout_ms=script_timeout_ms)
 
     if kind in ("dqn", "torch"):
         from .dqn import DQNController

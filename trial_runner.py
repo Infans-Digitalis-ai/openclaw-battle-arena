@@ -220,8 +220,20 @@ def main():
 
     warrior_sheet, wizard_sheet = _load_sprite_sheets()
 
-    controller_1 = make_controller(args.p1_kind, player=1, screen_width=SCREEN_WIDTH, script_path=args.p1_script)
-    controller_2 = make_controller(args.p2_kind, player=2, screen_width=SCREEN_WIDTH, script_path=args.p2_script)
+    controller_1 = make_controller(
+        args.p1_kind,
+        player=1,
+        screen_width=SCREEN_WIDTH,
+        script_path=args.p1_script,
+        script_timeout_ms=int(getattr(settings, "SCRIPT_ACT_TIMEOUT_MS", 8) or 8),
+    )
+    controller_2 = make_controller(
+        args.p2_kind,
+        player=2,
+        screen_width=SCREEN_WIDTH,
+        script_path=args.p2_script,
+        script_timeout_ms=int(getattr(settings, "SCRIPT_ACT_TIMEOUT_MS", 8) or 8),
+    )
 
     results: List[MatchResult] = []
     for i in range(args.matches):

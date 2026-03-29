@@ -176,6 +176,7 @@ controller_1 = make_controller(
     screen_width=SCREEN_WIDTH,
     ws_server=ws_server,
     script_path=getattr(settings, "P1_SCRIPT_PATH", None),
+    script_timeout_ms=int(getattr(settings, "SCRIPT_ACT_TIMEOUT_MS", 8) or 8),
 )
 controller_2 = make_controller(
     settings.P2_CONTROLLER,
@@ -183,6 +184,7 @@ controller_2 = make_controller(
     screen_width=SCREEN_WIDTH,
     ws_server=ws_server,
     script_path=getattr(settings, "P2_SCRIPT_PATH", None),
+    script_timeout_ms=int(getattr(settings, "SCRIPT_ACT_TIMEOUT_MS", 8) or 8),
 )
 
 def controller_label(player: int, kind: str, ctrl) -> str:
@@ -342,3 +344,24 @@ while run:
     pygame.display.update()
 
 pygame.quit()
+
+# --- OpenClaw script-bot cleanup ---
+# By convention, OpenClaw duels write bot scripts into bots/openclaw_p1.py and bots/openclaw_p2.py.
+# Delete them after the match so the next duel starts clean.
+if bool(getattr(settings, "AUTO_DELETE_OPENCLAW_SCRIPTS", True)):
+    def _safe_unlink(p: str) -> None:
+        try:
+            os.unlink(p)
+        except FileNotFoundError:
+            return
+        except Exception as e:
+            print(f"[cleanup] failed to delete {p}: {e}")
+
+    p1 = getattr(settings, "P1_SCRIPT_PATH", "") or ""
+    p2 = getattr(settings, "P2_SCRIPT_PATH", "") or ""
+
+    # Only delete the OpenClaw-generated default files (avoid deleting arbitrary user scripts).
+    if os.path.normpath(p1) == os.path.normpath("bots/openclaw_p1.py"):
+        _safe_unlink(p1)
+    if os.path.normpath(p2) == os.path.normpath("bots/openclaw_p2.py"):
+        _safe_unlink(p2)

@@ -29,6 +29,16 @@ P2_CONTROLLER = "script"  # wizard
 P1_SCRIPT_PATH = "bots/openclaw_p1.py"
 P2_SCRIPT_PATH = "bots/openclaw_p2.py"
 
+# Script controller fairness: per-tick deadline (ms). If a script fails to respond
+# in time, the host treats it as NOOP for that tick (and then NOOP for the rest of
+# the match to avoid runaway threads).
+# At 60 FPS, a tick is ~16.6ms; keep this comfortably below that.
+SCRIPT_ACT_TIMEOUT_MS = 8
+
+# Security/privacy: remove generated OpenClaw script bots after each match.
+# This keeps the bot handoff clean and ensures each new bot only sees its own script.
+AUTO_DELETE_OPENCLAW_SCRIPTS = True
+
 # WebSocket server (used when any controller is "remote")
 WS_HOST = "127.0.0.1"
 WS_PORT = 8765
