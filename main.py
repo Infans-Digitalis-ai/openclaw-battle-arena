@@ -1,4 +1,6 @@
 # main.py
+import json
+import os
 import pygame
 from pygame import mixer
 
@@ -36,6 +38,11 @@ round_over = False
 ROUND_OVER_COOLDOWN = 2000
 round_time_limit = 90
 round_start_time = pygame.time.get_ticks()
+
+# Anti-stuck + calibration state
+last_damage_time = pygame.time.get_ticks()
+last_combined_health = 200
+calibration_written_for_round = False
 
 # fighter setup data (unchanged)
 WARRIOR_DATA = [162, 4, [72, 56]]
@@ -98,6 +105,34 @@ def draw_health_bar(h, x, y):
     pygame.draw.rect(screen, WHITE, (x - 2, y - 2, 404, 34))
     pygame.draw.rect(screen, RED, (x, y, 400, 30))
     pygame.draw.rect(screen, YELLOW, (x, y, 400 * ratio, 30))
+
+
+def write_calibration_snapshot(*, p1_obs, p2_obs, out_path: str):
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    payload = {
+        "note": "Non-strategy calibration snapshot to help duelists calibrate distance units.",
+        "p1_obs": p1_obs.to_json(),
+        "p2_obs": p2_obs.to_json(),
+        "arena": {
+            "screen_width": SCREEN_WIDTH,
+            "screen_height": SCREEN_HEIGHT,
+            "fps": FPS,
+            "fighter": {
+                "rect_width": 80,
+                "speed_px_per_tick": 10,
+                "jump_vel_y": -30,
+                "gravity": 2,
+                "light": {"reach_rect_widths": 2.0, "dmg": 6, "cooldown_ticks": 12},
+                "heavy": {"reach_rect_widths": 3.0, "dmg": 10, "cooldown_ticks": 20},
+            },
+            "typical_units": {
+                "x": "pixels (0..screen_width)",
+                "distance": "abs(opp.x - self.x) in pixels",
+            },
+        },
+    }
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
 
 
 # Create two fighters (rendering unchanged)
@@ -220,13 +255,32 @@ while run:
         obs1 = fighter_1.make_observation(fighter_2, tick=tick)
         obs2 = fighter_2.make_observation(fighter_1, tick=tick)
 
+        # Write a non-strategy calibration snapshot once per round (first live tick).
+        if not calibration_written_for_round:
+            try:
+                write_calibration_snapshot(
+                    p1_obs=obs1,
+                    p2_obs=obs2,
+                    out_path="logs/calibration-latest.json",
+                )
+            except Exception:
+                pass
+            calibration_written_for_round = True
+
         # controllers choose actions
         a1 = int(controller_1.act(obs1))
         a2 = int(controller_2.act(obs2))
 
         # step physics
+        prev_combined = fighter_1.health + fighter_2.health
         r1, d1 = fighter_1.step_from_action(fighter_2, action_id=a1, round_over=round_over)
         r2, d2 = fighter_2.step_from_action(fighter_1, action_id=a2, round_over=round_over)
+
+        # Track damage events
+        combined = fighter_1.health + fighter_2.health
+        if combined < prev_combined:
+            last_damage_time = pygame.time.get_ticks()
+            last_combined_health = combined
 
         # optional DQN training hook
         if getattr(controller_1, "record", None):
@@ -237,6 +291,21 @@ while run:
         # update animations/draw
         fighter_1.update()
         fighter_2.update()
+
+        # Anti-stuck separation: if fighters are pressed together and no damage has occurred
+        # for a while, nudge them apart slightly so exchanges can resume.
+        stuck_ms = pygame.time.get_ticks() - last_damage_time
+        if stuck_ms > 1500 and fighter_1.rect.colliderect(fighter_2.rect):
+            # Push apart based on their relative positions.
+            if fighter_1.rect.centerx <= fighter_2.rect.centerx:
+                fighter_1.rect.x = max(0, fighter_1.rect.x - 8)
+                fighter_2.rect.x = min(SCREEN_WIDTH - fighter_2.rect.width, fighter_2.rect.x + 8)
+            else:
+                fighter_1.rect.x = min(SCREEN_WIDTH - fighter_1.rect.width, fighter_1.rect.x + 8)
+                fighter_2.rect.x = max(0, fighter_2.rect.x - 8)
+            # Avoid repeated shoves every frame.
+            last_damage_time = pygame.time.get_ticks()
+
         fighter_1.draw(screen)
         fighter_2.draw(screen)
 
@@ -256,6 +325,9 @@ while run:
             intro_count = 3
             fighter_1.reset()
             fighter_2.reset()
+            last_damage_time = pygame.time.get_ticks()
+            last_combined_health = fighter_1.health + fighter_2.health
+            calibration_written_for_round = False
 
             # MATCH mode: stop once someone reaches win_target (best-of-N)
             if settings.MODE.upper() == "MATCH":
