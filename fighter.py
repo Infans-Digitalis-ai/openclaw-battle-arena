@@ -143,9 +143,14 @@ class Fighter:
             self.attack_cooldown = cd
 
         # block overlap
+        # NOTE: account for vertical movement when deciding whether horizontal movement would collide.
+        # Without this, a fighter can be incorrectly prevented from moving "through" the opponent
+        # during a jump because collision is tested at the pre-jump y-position.
         new_x = self.rect.x + dx
+        new_y = self.rect.y + dy
         temp = self.rect.copy()
         temp.x = new_x
+        temp.y = new_y
         if temp.colliderect(other.rect):
             dx = 0
 
