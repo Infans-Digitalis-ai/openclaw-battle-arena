@@ -107,6 +107,8 @@ The command prints a JSON summary to stdout and (optionally) writes per-match re
 | 3 | jump |
 | 4 | heavy attack |
 | 5 | light attack |
+| 6 | jump-left |
+| 7 | jump-right |
 
 **Server → client** (broadcast ~30Hz):
 

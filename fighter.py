@@ -12,6 +12,7 @@ class Fighter:
 
     # Stable action ids for controllers
     # 0 noop, 1 move left, 2 move right, 3 jump, 4 heavy attack, 5 light attack
+    # 6 jump-left, 7 jump-right
     ACTIONS = {
         0: "noop",
         1: "left",
@@ -19,6 +20,8 @@ class Fighter:
         3: "jump",
         4: "heavy",
         5: "light",
+        6: "jump_left",
+        7: "jump_right",
     }
 
     def __init__(self, player, x, y, flip, data, sprite_sheet, animation_steps, attack_sound, screen_width):
@@ -111,9 +114,14 @@ class Fighter:
             dx = -self.SPEED
         elif action_id == 2:
             dx = self.SPEED
-        elif action_id == 3 and not self.jump:
+        elif action_id in (3, 6, 7) and not self.jump:
+            # Jump (optionally with horizontal intent).
             self.vel_y = -30
             self.jump = True
+            if action_id == 6:
+                dx = -self.SPEED
+            elif action_id == 7:
+                dx = self.SPEED
         elif action_id in (4, 5) and self.attack_cooldown == 0:
             # attacks
             self.attacking = True

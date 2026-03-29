@@ -72,7 +72,7 @@ class Controller(Protocol):
     def act(self, obs: Observation) -> int:
         """Return an action id.
 
-        Action ids are defined by Fighter.ACTIONS.
+        Action ids are defined by Fighter.ACTIONS (includes jump-left/jump-right).
         """
 
 
