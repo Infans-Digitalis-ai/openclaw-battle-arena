@@ -48,6 +48,11 @@ SCRIPT_ACT_TIMEOUT_MS = 25
 # them after every round.
 AUTO_DELETE_OPENCLAW_SCRIPTS = False
 
+# Artifacts
+# If True, write lightweight `events.jsonl` (damage + round_end) alongside meta/result.
+# Turn off for maximum performance in tournaments.
+WRITE_EVENTS_JSONL = True
+
 # WebSocket server (used when any controller is "remote")
 WS_HOST = "127.0.0.1"
 WS_PORT = 8765

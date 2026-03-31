@@ -224,7 +224,7 @@ match_art = begin_match(
         "p2": {"kind": str(settings.P2_CONTROLLER), "name": getattr(controller_2, "name", "")},
     },
     arena={"screen_width": SCREEN_WIDTH, "screen_height": SCREEN_HEIGHT},
-    enable_events=True,
+    enable_events=bool(getattr(settings, "WRITE_EVENTS_JSONL", True)),
 )
 round_tick_start = 0
 
