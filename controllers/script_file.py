@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib.util
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
 from types import ModuleType
 from typing import Any, Callable
@@ -43,6 +43,8 @@ class ScriptFileController:
       - per-tick time budget: if the script doesn't respond in time, return NOOP
         (and mark the controller timed-out for the remainder of the match)
       - clamp invalid actions to NOOP
+      - rate limit / anti-backlog: never queue multiple in-flight calls; if a call
+        is already running, return NOOP for this tick.
 
     Note: Python threads can't be force-killed safely. If a script times out and
     then blocks forever, we treat it as "dead" and keep returning NOOP.
@@ -60,6 +62,13 @@ class ScriptFileController:
         self._act_timeout_s = max(0.0, float(act_timeout_ms) / 1000.0)
         self._timed_out = False
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="script_bot")
+        self._inflight: Future | None = None
+
+        # Per-tick cache: if act() is accidentally called multiple times for the same
+        # tick, return the same action (or NOOP) and do NOT re-run user code.
+        self._last_tick: int | None = None
+        self._last_action: int = 0
+
         self._warned_timeout = False
         self._warned_error = False
 
@@ -67,7 +76,18 @@ class ScriptFileController:
         return a if a in _VALID_ACTIONS else 0
 
     def act(self, obs: Observation) -> int:
+        # If we already decided the controller is "dead" for this match, fail closed.
         if self._timed_out:
+            return 0
+
+        # Per-tick rate limit: never run user code twice for the same tick.
+        if self._last_tick == obs.tick:
+            return self._last_action
+
+        # Anti-backlog: if a previous tick's call is still running, don't queue more.
+        if self._inflight is not None and not self._inflight.done():
+            self._last_tick = obs.tick
+            self._last_action = 0
             return 0
 
         # Pass dict to keep the script interface stable and language-agnostic.
@@ -76,18 +96,31 @@ class ScriptFileController:
         # No budget => just call directly.
         if self._act_timeout_s <= 0:
             try:
-                return self._clamp_action(int(self._choose(payload)))
+                a = self._clamp_action(int(self._choose(payload)))
             except Exception:
-                return 0
+                a = 0
+            self._last_tick = obs.tick
+            self._last_action = a
+            return a
 
-        start = time.perf_counter()
-        fut = self._executor.submit(self._choose, payload)
+        self._inflight = self._executor.submit(self._choose, payload)
         try:
-            a = fut.result(timeout=self._act_timeout_s)
-            _ = time.perf_counter() - start
-            return self._clamp_action(int(a))
+            a = self._inflight.result(timeout=self._act_timeout_s)
+            a2 = self._clamp_action(int(a))
+            self._last_tick = obs.tick
+            self._last_action = a2
+            return a2
         except FutureTimeoutError:
+            # Best-effort cancel; if already running, this won't stop it.
+            try:
+                self._inflight.cancel()
+            except Exception:
+                pass
+
             self._timed_out = True
+            self._last_tick = obs.tick
+            self._last_action = 0
+
             if not self._warned_timeout:
                 self._warned_timeout = True
                 print(
@@ -97,6 +130,8 @@ class ScriptFileController:
             return 0
         except Exception as e:
             # Fail closed: invalid scripts shouldn't crash the host.
+            self._last_tick = obs.tick
+            self._last_action = 0
             if not self._warned_error:
                 self._warned_error = True
                 print(f"[script] {self.name} error in choose_action: {e}; returning NOOP")

@@ -37,6 +37,8 @@ import pygame  # noqa: E402
 from fighter import Fighter  # noqa: E402
 from controllers.factory import make_controller  # noqa: E402
 
+import settings  # noqa: E402
+
 
 FPS = 60
 SCREEN_WIDTH = 1000
@@ -133,6 +135,15 @@ def run_single_match(
         while True:
             tick += 1
             round_ticks += 1
+
+            # Optional throttle for human-in-the-loop testing.
+            # Set env TICK_SLEEP_MS (e.g., 5 or 10) to slow down headless sims.
+            try:
+                _sleep_ms = float(os.getenv("TICK_SLEEP_MS", "0") or "0")
+            except Exception:
+                _sleep_ms = 0.0
+            if _sleep_ms > 0:
+                time.sleep(_sleep_ms / 1000.0)
 
             # build observations
             obs1 = fighter_1.make_observation(fighter_2, tick=tick)

@@ -15,6 +15,11 @@ Modes:
 # MODE can be: "TRAIN" or "MATCH"
 MODE = "MATCH"
 
+# Fairness: when MODE="MATCH", prefer deterministic tick-count timing over wallclock.
+# This makes the match length (in ticks/steps) identical across machines; slower machines
+# will simply take longer in real time rather than simulating fewer steps.
+FIXED_TICK_MATCH = True
+
 # Round format when MODE="MATCH"
 MATCH_BEST_OF = 3  # best-of-3 rounds
 
@@ -33,11 +38,15 @@ P2_SCRIPT_PATH = "bots/openclaw_p2.py"
 # in time, the host treats it as NOOP for that tick (and then NOOP for the rest of
 # the match to avoid runaway threads).
 # At 60 FPS, a tick is ~16.6ms; keep this comfortably below that.
-SCRIPT_ACT_TIMEOUT_MS = 8
+# NOTE: 8ms is tight on some CPUs if the bot does any file I/O.
+# For local experimentation (tick/macro shells, live overrides), use a looser budget.
+SCRIPT_ACT_TIMEOUT_MS = 25
 
 # Security/privacy: remove generated OpenClaw script bots after each match.
 # This keeps the bot handoff clean and ensures each new bot only sees its own script.
-AUTO_DELETE_OPENCLAW_SCRIPTS = True
+# For local testing, keep the plugged-in scripts so we can iterate without re-writing
+# them after every round.
+AUTO_DELETE_OPENCLAW_SCRIPTS = False
 
 # WebSocket server (used when any controller is "remote")
 WS_HOST = "127.0.0.1"

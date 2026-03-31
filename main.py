@@ -33,10 +33,17 @@ WHITE = (255, 255, 255)
 # game variables
 intro_count = 3
 last_count_update = pygame.time.get_ticks()
+
+# Deterministic tick-based timing (used when settings.FIXED_TICK_MATCH and MODE="MATCH")
+INTRO_TICKS_PER_COUNT = 60  # 1 second at FPS=60
+intro_ticks_remaining = intro_count * INTRO_TICKS_PER_COUNT
+ROUND_TIME_LIMIT_S = 90
+round_ticks_remaining = ROUND_TIME_LIMIT_S * 60
+
 score = [0, 0]
 round_over = False
 ROUND_OVER_COOLDOWN = 2000
-round_time_limit = 90
+round_time_limit = ROUND_TIME_LIMIT_S
 round_start_time = pygame.time.get_ticks()
 
 # Anti-stuck + calibration state
@@ -229,16 +236,30 @@ while run:
     draw_text_shadow(p1_label, ui_font, WHITE, 20, HUD_Y3)
     draw_text_right(p2_label, ui_font, WHITE, SCREEN_WIDTH - 20, HUD_Y3)
 
+    fixed_match = bool(getattr(settings, "FIXED_TICK_MATCH", False)) and settings.MODE.upper() == "MATCH"
+
     if intro_count > 0:
         draw_text(str(intro_count), count_font, RED, SCREEN_WIDTH / 2 - 20, SCREEN_HEIGHT / 3)
-        if pygame.time.get_ticks() - last_count_update >= 1000:
-            intro_count -= 1
-            last_count_update = pygame.time.get_ticks()
+
+        if fixed_match:
+            # Tick-based 3..2..1 countdown (deterministic across machines)
+            intro_ticks_remaining = max(0, intro_ticks_remaining - 1)
+            intro_count = max(0, (intro_ticks_remaining + INTRO_TICKS_PER_COUNT - 1) // INTRO_TICKS_PER_COUNT)
             if intro_count == 0:
-                round_start_time = pygame.time.get_ticks()
+                round_ticks_remaining = ROUND_TIME_LIMIT_S * FPS
+        else:
+            if pygame.time.get_ticks() - last_count_update >= 1000:
+                intro_count -= 1
+                last_count_update = pygame.time.get_ticks()
+                if intro_count == 0:
+                    round_start_time = pygame.time.get_ticks()
     else:
-        elapsed = (pygame.time.get_ticks() - round_start_time) / 1000
-        rem = max(0, round_time_limit - elapsed)
+        if fixed_match:
+            round_ticks_remaining = max(0, round_ticks_remaining - 1)
+            rem = round_ticks_remaining / FPS
+        else:
+            elapsed = (pygame.time.get_ticks() - round_start_time) / 1000
+            rem = max(0, round_time_limit - elapsed)
 
         # HUD timer formatting:
         # - Show M:SS when >= 60s remaining (e.g., 1:00, 2:15)
@@ -325,6 +346,9 @@ while run:
         if rem <= 0 or (round_over and pygame.time.get_ticks() - round_over_time > ROUND_OVER_COOLDOWN):
             round_over = False
             intro_count = 3
+            intro_ticks_remaining = intro_count * INTRO_TICKS_PER_COUNT
+            if fixed_match:
+                round_ticks_remaining = ROUND_TIME_LIMIT_S * FPS
             fighter_1.reset()
             fighter_2.reset()
             last_damage_time = pygame.time.get_ticks()

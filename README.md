@@ -46,6 +46,15 @@ Edit `settings.py`:
 - set `P2_CONTROLLER = "script"`
 - point `P1_SCRIPT_PATH` / `P2_SCRIPT_PATH` at files in `bots/`
 
+**Script-mode fairness guardrails (host-enforced):**
+- **Per-tick deadline:** `SCRIPT_ACT_TIMEOUT_MS` sets the maximum time budget for `choose_action()`.
+  - If the script doesn’t respond in time, the host returns **NOOP**.
+  - A timeout marks the script as **timed out for the rest of the match** (NOOP thereafter) to avoid runaway threads.
+- **Per-tick cache:** if `act()` is called more than once for the same tick, the controller returns the same action (does not re-run bot code).
+- **Anti-backlog rate limit:** if a previous tick’s `choose_action()` call is still running, the host will **NOT queue another call**; it returns NOOP for that tick.
+
+These are implemented in `controllers/script_file.py`.
+
 Example:
 
 ```py
