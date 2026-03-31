@@ -15,6 +15,10 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Syntax check (py_compile)
+      - name: Syntax check (compileall)
         run: |
           python -m compileall -q .
+
+      - name: Unit tests (unittest)
+        run: |
+          python -m unittest -q
