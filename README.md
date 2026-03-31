@@ -135,6 +135,15 @@ Full details: see **docs/PROTOCOL.md**.
 
 Match outputs/artifacts: see **docs/ARTIFACTS.md**.
 
+By default, the host writes artifacts under:
+
+```
+logs/matches/<match_id>/
+  meta.json
+  result.json
+  events.jsonl   # optional (controlled by settings.WRITE_EVENTS_JSONL)
+```
+
 ---
 
 ## Project structure
