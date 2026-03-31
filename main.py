@@ -10,6 +10,7 @@ from controllers.factory import make_controller
 from controllers.ws_server import BattleAgentsWSServer
 
 import settings
+from artifacts import begin_match, RoundResult
 
 mixer.init()
 pygame.init()
@@ -209,6 +210,24 @@ p2_label = controller_label(2, settings.P2_CONTROLLER, controller_2)
 best_of = max(1, int(settings.MATCH_BEST_OF))
 win_target = (best_of // 2) + 1
 
+# --- Artifact writer (minimal) ---
+artifacts_base = os.path.join("logs", "matches")
+_fixed_match = bool(getattr(settings, "FIXED_TICK_MATCH", False)) and settings.MODE.upper() == "MATCH"
+match_art = begin_match(
+    base_dir=artifacts_base,
+    mode=str(settings.MODE).upper(),
+    best_of=best_of,
+    fixed_tick_match=_fixed_match,
+    fps=FPS,
+    controllers={
+        "p1": {"kind": str(settings.P1_CONTROLLER), "name": getattr(controller_1, "name", "")},
+        "p2": {"kind": str(settings.P2_CONTROLLER), "name": getattr(controller_2, "name", "")},
+    },
+    arena={"screen_width": SCREEN_WIDTH, "screen_height": SCREEN_HEIGHT},
+    enable_events=True,
+)
+round_tick_start = 0
+
 run = True
 tick = 0
 while run:
@@ -247,12 +266,14 @@ while run:
             intro_count = max(0, (intro_ticks_remaining + INTRO_TICKS_PER_COUNT - 1) // INTRO_TICKS_PER_COUNT)
             if intro_count == 0:
                 round_ticks_remaining = ROUND_TIME_LIMIT_S * FPS
+                round_tick_start = tick
         else:
             if pygame.time.get_ticks() - last_count_update >= 1000:
                 intro_count -= 1
                 last_count_update = pygame.time.get_ticks()
                 if intro_count == 0:
                     round_start_time = pygame.time.get_ticks()
+                    round_tick_start = tick
     else:
         if fixed_match:
             round_ticks_remaining = max(0, round_ticks_remaining - 1)
@@ -304,6 +325,17 @@ while run:
         if combined < prev_combined:
             last_damage_time = pygame.time.get_ticks()
             last_combined_health = combined
+            try:
+                match_art.event(
+                    {
+                        "t": tick - round_tick_start,
+                        "type": "damage",
+                        "p1_health": fighter_1.health,
+                        "p2_health": fighter_2.health,
+                    }
+                )
+            except Exception:
+                pass
 
         # optional DQN training hook
         if getattr(controller_1, "record", None):
@@ -344,6 +376,40 @@ while run:
 
         # end-of-round handling
         if rem <= 0 or (round_over and pygame.time.get_ticks() - round_over_time > ROUND_OVER_COOLDOWN):
+            # Record round result (minimal)
+            try:
+                rounds_played = score[0] + score[1]
+                # winner for this round is whoever just gained a point (or None on timeout w/ tie)
+                if rem <= 0 and not round_over:
+                    # time limit with both alive — winner by remaining health
+                    if fighter_1.health > fighter_2.health:
+                        rw = 1
+                    elif fighter_2.health > fighter_1.health:
+                        rw = 2
+                    else:
+                        rw = None
+                    end_reason = "timeout"
+                else:
+                    if not fighter_1.alive:
+                        rw = 2
+                    elif not fighter_2.alive:
+                        rw = 1
+                    else:
+                        rw = None
+                    end_reason = "ko" if rw is not None else "timeout"
+
+                match_art.add_round(
+                    RoundResult(
+                        round=rounds_played,
+                        winner=rw,
+                        ticks=max(0, tick - round_tick_start),
+                        end_reason=end_reason,
+                    )
+                )
+                match_art.event({"t": tick - round_tick_start, "type": "round_end", "winner": rw, "reason": end_reason})
+            except Exception:
+                pass
+
             round_over = False
             intro_count = 3
             intro_ticks_remaining = intro_count * INTRO_TICKS_PER_COUNT
@@ -368,6 +434,12 @@ while run:
     pygame.display.update()
 
 pygame.quit()
+
+# Finalize artifacts
+try:
+    match_art.finalize()
+except Exception:
+    pass
 
 # --- OpenClaw script-bot cleanup ---
 # By convention, OpenClaw duels write bot scripts into bots/openclaw_p1.py and bots/openclaw_p2.py.
