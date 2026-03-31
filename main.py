@@ -326,12 +326,21 @@ while run:
             last_damage_time = pygame.time.get_ticks()
             last_combined_health = combined
             try:
+                # Replay-friendly: include both fighters' positions and a best-effort
+                # guess at which player landed a hit (based on reward signal).
+                by = None
+                if r1 > 0 and r2 <= 0:
+                    by = 1
+                elif r2 > 0 and r1 <= 0:
+                    by = 2
+
                 match_art.event(
                     {
                         "t": tick - round_tick_start,
                         "type": "damage",
-                        "p1_health": fighter_1.health,
-                        "p2_health": fighter_2.health,
+                        "by": by,
+                        "p1": {"x": fighter_1.rect.x, "y": fighter_1.rect.y, "health": fighter_1.health},
+                        "p2": {"x": fighter_2.rect.x, "y": fighter_2.rect.y, "health": fighter_2.health},
                     }
                 )
             except Exception:
