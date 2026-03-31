@@ -133,6 +133,8 @@ The command prints a JSON summary to stdout and (optionally) writes per-match re
 
 Full details: see **docs/PROTOCOL.md**.
 
+Match outputs/artifacts: see **docs/ARTIFACTS.md**.
+
 ---
 
 ## Project structure
