@@ -49,7 +49,19 @@ class TestArtifacts(unittest.TestCase):
                 enable_events=False,
             )
 
-            ma.add_round(RoundResult(round=1, winner=1, ticks=100, end_reason="ko"))
+            ma.add_round(
+                RoundResult(
+                    round=1,
+                    winner=1,
+                    ticks=100,
+                    end_reason="ko",
+                    p1_damage=25,
+                    p2_damage=10,
+                    p1_hits=3,
+                    p2_hits=1,
+                    avg_distance=123.5,
+                )
+            )
             ma.add_round(RoundResult(round=2, winner=1, ticks=120, end_reason="timeout"))
             ma.finalize()
 
@@ -65,6 +77,17 @@ class TestArtifacts(unittest.TestCase):
             self.assertEqual(len(res["rounds"]), 2)
             self.assertEqual(res["rounds"][0]["round"], 1)
             self.assertEqual(res["rounds"][0]["ticks"], 100)
+            self.assertEqual(
+                res["rounds"][0]["stats"],
+                {
+                    "p1_damage": 25,
+                    "p2_damage": 10,
+                    "p1_hits": 3,
+                    "p2_hits": 1,
+                    "avg_distance": 123.5,
+                },
+            )
+            self.assertIsNone(res["rounds"][1]["stats"])
 
 
 if __name__ == "__main__":

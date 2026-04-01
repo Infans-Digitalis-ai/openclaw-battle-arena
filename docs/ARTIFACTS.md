@@ -79,13 +79,16 @@ End reasons (suggested):
 JSON Lines stream of notable events (recommended instead of per-tick dumps):
 
 ```jsonl
-{"t":120,"type":"hit","by":1,"dmg":10,"p1_health":90,"p2_health":100}
-{"t":121,"type":"hit","by":1,"dmg":10,"p1_health":90,"p2_health":90}
+{"t":120,"type":"hit","by":1,"dmg":10,"p1":{"x":210,"y":310,"health":90},"p2":{"x":700,"y":310,"health":100}}
+{"t":121,"type":"hit","by":1,"dmg":10,"p1":{"x":220,"y":310,"health":90},"p2":{"x":690,"y":310,"health":90}}
 {"t":5400,"type":"round_end","reason":"timeout","winner":2}
 ```
 
 Rules:
 - `t` is **tick** (int) within the round (or absolute match tick if you prefer; just document it).
+- `by` is best-effort (may be null).
+- `dmg` is best-effort (0 when unknown/ambiguous).
+- `p1`/`p2` capture a minimal, non-strategy snapshot useful for replay/debug.
 
 ## Observations logs (optional)
 

@@ -346,6 +346,8 @@ while run:
             try:
                 p1_drop = max(0, int(_prev_p1_health - fighter_1.health))
                 p2_drop = max(0, int(_prev_p2_health - fighter_2.health))
+                # record a single damage amount for the event (if exactly one player took damage)
+                _evt_dmg = p1_drop if p1_drop and not p2_drop else (p2_drop if p2_drop and not p1_drop else 0)
                 if p1_drop:
                     _round_p2_damage += p1_drop
                     _round_p2_hits += 1
@@ -369,8 +371,11 @@ while run:
                 match_art.event(
                     {
                         "t": tick - round_tick_start,
-                        "type": "damage",
+                        # Align with docs/ARTIFACTS.md examples.
+                        "type": "hit",
                         "by": by,
+                        # best-effort damage amount when we can infer it from health deltas
+                        "dmg": int(_evt_dmg),
                         "p1": {"x": fighter_1.rect.x, "y": fighter_1.rect.y, "health": fighter_1.health},
                         "p2": {"x": fighter_2.rect.x, "y": fighter_2.rect.y, "health": fighter_2.health},
                     }
