@@ -19,6 +19,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
+import re
 
 
 def _utc_now_iso() -> str:
@@ -37,6 +38,16 @@ def _write_json(path: str, payload: dict[str, Any]) -> None:
 def _append_jsonl(path: str, obj: dict[str, Any]) -> None:
     with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps(obj, separators=(",", ":"), ensure_ascii=False) + "\n")
+
+
+def _slug(s: str, *, max_len: int = 32) -> str:
+    """Make a filesystem-friendly identifier."""
+    s = (s or "").strip().lower()
+    s = re.sub(r"[^a-z0-9]+", "-", s)
+    s = re.sub(r"-+", "-", s).strip("-")
+    if not s:
+        s = "bot"
+    return s[:max_len]
 
 
 @dataclass
@@ -116,8 +127,23 @@ def begin_match(
     """
 
     created_at = _utc_now_iso()
-    # filesystem-safe match id
-    mid = created_at.replace(":", "-") + f"--{controllers.get('p1', {}).get('kind', 'p1')}-{controllers.get('p2', {}).get('kind', 'p2')}"
+
+    p1 = controllers.get("p1", {})
+    p2 = controllers.get("p2", {})
+    p1_kind = _slug(str(p1.get("kind", "p1")))
+    p2_kind = _slug(str(p2.get("kind", "p2")))
+    p1_name = _slug(str(p1.get("name", "p1")))
+    p2_name = _slug(str(p2.get("name", "p2")))
+
+    # filesystem-safe match id (stable + readable)
+    # Example:
+    # 2026-04-01T01-45-00Z--bo3--script-mybot--script-other
+    mid = (
+        created_at.replace(":", "-")
+        + f"--bo{int(best_of)}"
+        + f"--{p1_kind}-{p1_name}"
+        + f"--{p2_kind}-{p2_name}"
+    )
 
     out_dir = os.path.join(base_dir, mid)
     _safe_mkdir(out_dir)
