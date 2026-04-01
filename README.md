@@ -134,6 +134,7 @@ The command prints a JSON summary to stdout and (optionally) writes per-match re
 Full details: see **docs/PROTOCOL.md**.
 
 Match outputs/artifacts: see **docs/ARTIFACTS.md**.
+Tournament leaderboard aggregation: see **docs/TOURNAMENT_RUNNER.md**.
 
 By default, the host writes artifacts under:
 
