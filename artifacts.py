@@ -57,6 +57,13 @@ class RoundResult:
     ticks: int
     end_reason: str
 
+    # optional summary stats
+    p1_damage: int | None = None
+    p2_damage: int | None = None
+    p1_hits: int | None = None
+    p2_hits: int | None = None
+    avg_distance: float | None = None
+
 
 @dataclass
 class MatchArtifacts:
@@ -103,6 +110,18 @@ class MatchArtifacts:
                     "winner": r.winner,
                     "ticks": r.ticks,
                     "end_reason": r.end_reason,
+                    "stats": {
+                        "p1_damage": r.p1_damage,
+                        "p2_damage": r.p2_damage,
+                        "p1_hits": r.p1_hits,
+                        "p2_hits": r.p2_hits,
+                        "avg_distance": r.avg_distance,
+                    }
+                    if any(
+                        v is not None
+                        for v in (r.p1_damage, r.p2_damage, r.p1_hits, r.p2_hits, r.avg_distance)
+                    )
+                    else None,
                 }
                 for r in self.rounds
             ],

@@ -227,6 +227,15 @@ match_art = begin_match(
     enable_events=bool(getattr(settings, "WRITE_EVENTS_JSONL", True)),
 )
 round_tick_start = 0
+# Per-round summary stats (lightweight, deterministic)
+_round_p1_damage = 0
+_round_p2_damage = 0
+_round_p1_hits = 0
+_round_p2_hits = 0
+_round_dist_sum = 0.0
+_round_dist_n = 0
+_prev_p1_health = fighter_1.health
+_prev_p2_health = fighter_2.health
 
 run = True
 tick = 0
@@ -320,11 +329,34 @@ while run:
         r1, d1 = fighter_1.step_from_action(fighter_2, action_id=a1, round_over=round_over)
         r2, d2 = fighter_2.step_from_action(fighter_1, action_id=a2, round_over=round_over)
 
+        # distance sample (post-step)
+        try:
+            _round_dist_sum += abs(fighter_2.rect.x - fighter_1.rect.x)
+            _round_dist_n += 1
+        except Exception:
+            pass
+
         # Track damage events
         combined = fighter_1.health + fighter_2.health
         if combined < prev_combined:
             last_damage_time = pygame.time.get_ticks()
             last_combined_health = combined
+
+            # Compute damage deltas from health drop (best-effort)
+            try:
+                p1_drop = max(0, int(_prev_p1_health - fighter_1.health))
+                p2_drop = max(0, int(_prev_p2_health - fighter_2.health))
+                if p1_drop:
+                    _round_p2_damage += p1_drop
+                    _round_p2_hits += 1
+                if p2_drop:
+                    _round_p1_damage += p2_drop
+                    _round_p1_hits += 1
+                _prev_p1_health = fighter_1.health
+                _prev_p2_health = fighter_2.health
+            except Exception:
+                pass
+
             try:
                 # Replay-friendly: include both fighters' positions and a best-effort
                 # guess at which player landed a hit (based on reward signal).
@@ -425,6 +457,11 @@ while run:
                         winner=rw,
                         ticks=max(0, tick - round_tick_start),
                         end_reason=end_reason,
+                        p1_damage=int(_round_p1_damage),
+                        p2_damage=int(_round_p2_damage),
+                        p1_hits=int(_round_p1_hits),
+                        p2_hits=int(_round_p2_hits),
+                        avg_distance=(float(_round_dist_sum) / float(_round_dist_n)) if _round_dist_n else None,
                     )
                 )
                 match_art.event({"t": tick - round_tick_start, "type": "round_end", "winner": rw, "reason": end_reason})
@@ -438,6 +475,17 @@ while run:
                 round_ticks_remaining = ROUND_TIME_LIMIT_S * FPS
             fighter_1.reset()
             fighter_2.reset()
+
+            # reset per-round stats
+            _round_p1_damage = 0
+            _round_p2_damage = 0
+            _round_p1_hits = 0
+            _round_p2_hits = 0
+            _round_dist_sum = 0.0
+            _round_dist_n = 0
+            _prev_p1_health = fighter_1.health
+            _prev_p2_health = fighter_2.health
+
             last_damage_time = pygame.time.get_ticks()
             last_combined_health = fighter_1.health + fighter_2.health
             calibration_written_for_round = False
