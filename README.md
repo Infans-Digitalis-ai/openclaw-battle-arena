@@ -144,6 +144,18 @@ logs/matches/<match_id>/
   events.jsonl   # optional (controlled by settings.WRITE_EVENTS_JSONL)
 ```
 
+### Tournament/leaderboard aggregation
+
+If you have many match runs and want a quick win/loss/tie leaderboard (plus optional per-round stat aggregates when present), use:
+
+```bash
+python tournament_runner.py --results-glob "logs/matches/*/result.json" --out leaderboard.json
+```
+
+Notes:
+- Players are keyed by controller identity from each match's `meta.json` (e.g., `script-mybot`).
+- If `rounds[*].stats` exists in `result.json`, the leaderboard includes aggregated damage/hits/avg_distance.
+
 ---
 
 ## Project structure
