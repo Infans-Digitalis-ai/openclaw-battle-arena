@@ -387,8 +387,10 @@ while run:
         if rem <= 0 or (round_over and pygame.time.get_ticks() - round_over_time > ROUND_OVER_COOLDOWN):
             # Record round result (minimal)
             try:
-                rounds_played = score[0] + score[1]
-                # winner for this round is whoever just gained a point (or None on timeout w/ tie)
+                # Round numbering: score is incremented immediately for KO rounds above,
+                # but timeout rounds do NOT increment score unless we do it here.
+                base_round = score[0] + score[1]
+
                 if rem <= 0 and not round_over:
                     # time limit with both alive — winner by remaining health
                     if fighter_1.health > fighter_2.health:
@@ -398,6 +400,13 @@ while run:
                     else:
                         rw = None
                     end_reason = "timeout"
+
+                    # Count the round and apply the point (unless tied).
+                    round_number = base_round + 1
+                    if rw == 1:
+                        score[0] += 1
+                    elif rw == 2:
+                        score[1] += 1
                 else:
                     if not fighter_1.alive:
                         rw = 2
@@ -407,9 +416,12 @@ while run:
                         rw = None
                     end_reason = "ko" if rw is not None else "timeout"
 
+                    # KO rounds already updated the score, so base_round is the completed round count.
+                    round_number = base_round
+
                 match_art.add_round(
                     RoundResult(
-                        round=rounds_played,
+                        round=round_number,
                         winner=rw,
                         ticks=max(0, tick - round_tick_start),
                         end_reason=end_reason,
